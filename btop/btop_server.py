@@ -17,7 +17,6 @@ class BtopServer(object):
         self.mem = {"total": 0, "used": 0, "percent": 0}
         self.swp = {"total": 0, "used": 0, "percent": 0}
         self.processes = []
-        self.uptime = 0
 
     def start(self):
         ws_server = websockets.serve(self.handle_conn, "0.0.0.0", self.port)
@@ -35,7 +34,6 @@ class BtopServer(object):
                     "cpu": self.cpu,
                     "mem": self.mem,
                     "swp": self.swp,
-                    "uptime": self.uptime,
                     "add": self.processes,
                     "update": [],
                     "remove": [],
@@ -63,8 +61,21 @@ class BtopServer(object):
 
     async def update(self):
         self.cpu = psutil.cpu_percent(percpu=True)
-        self.processes = [p.as_dict() for p in psutil.process_iter()]
-        self.uptime = 0
+        self.processes = [
+            p.as_dict(
+                attrs=(
+                    "pid",
+                    "username",
+                    "nice",
+                    "memory_info",
+                    "status",
+                    "cpu_percent",
+                    "memory_percent",
+                    "cmdline",
+                )
+            )
+            for p in psutil.process_iter()
+        ]
 
         for process in self.processes:
             process["cpu_percent"] = round(process["cpu_percent"], 2)
@@ -107,12 +118,15 @@ class BtopServer(object):
                     "cpu": self.cpu,
                     "mem": self.mem,
                     "swp": self.swp,
-                    "uptime": self.uptime,
                     "add": added,
                     "update": updated,
                     "remove": removed,
                 }
             )
         )
-        await asyncio.sleep(1)
+        await asyncio.sleep(1.5)
         asyncio.ensure_future(self.update())
+
+
+if __name__ == "__main__":
+    BtopServer(5678).start()
